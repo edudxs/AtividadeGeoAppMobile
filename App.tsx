@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput, View, Button, FlatList, Image, Alert, ScrollView } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  Button,
+  FlatList,
+  Image,
+  Alert,
+  ScrollView,
+} from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 
-const API_URL = 'http://172.26.47.72:3000';
-// Se for testar no celular físico na mesma rede, use o IP da máquina:
-// const API_URL = 'http://SEU_IP_LOCAL:3000';
-// ipconfig getifaddr en0
-
+const API_URL = 'http://192.168.1.5:3000';
 
 type Place = {
   _id: string;
@@ -34,11 +40,13 @@ export default function App() {
 
   const fetchPlaces = async () => {
     try {
+      console.log('GET ->', `${API_URL}/api/places`);
       const res = await fetch(`${API_URL}/api/places`);
       const data = await res.json();
+      console.log('RES GET /api/places:', data);
       setPlaces(data);
     } catch (error) {
-      console.error(error);
+      console.error('Erro no GET /api/places:', error);
       Alert.alert('Erro', 'Não foi possível carregar os registros');
     }
   };
@@ -87,37 +95,52 @@ export default function App() {
 
     try {
       setLoading(true);
+      const payload = {
+        title,
+        description,
+        latitude,
+        longitude,
+        photo,
+      };
+
+      console.log('POST ->', `${API_URL}/api/places`);
+      console.log('Body:', payload);
+
       const res = await fetch(`${API_URL}/api/places`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          title,
-          description,
-          latitude,
-          longitude,
-          photo,
-        }),
+        body: JSON.stringify(payload),
       });
 
+      const text = await res.text(); // lê o corpo como texto pra logar tudo
+      console.log('Status POST:', res.status, 'Body:', text);
+
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
+        let errorData: any = {};
+        try {
+          errorData = JSON.parse(text);
+        } catch (e) {
+          // body não era JSON, ignora
+        }
         console.error('Erro ao salvar', errorData);
-        Alert.alert('Erro', 'Falha ao salvar o registro.');
+        Alert.alert('Erro', `Falha ao salvar o registro. Código ${res.status}`);
         return;
       }
 
-      const created = await res.json();
-      setPlaces((prev) => [created, ...prev]);
+      const created: Place = JSON.parse(text);
+      setPlaces(prev => [created, ...prev]);
+
       setTitle('');
       setDescription('');
       setLatitude(null);
       setLongitude(null);
       setPhoto(null);
+
       Alert.alert('Sucesso', 'Registro salvo com sucesso!');
     } catch (error) {
-      console.error(error);
+      console.error('Erro no POST /api/places:', error);
       Alert.alert('Erro', 'Falha na conexão com o backend.');
     } finally {
       setLoading(false);
@@ -149,6 +172,7 @@ export default function App() {
           value={title}
           onChangeText={setTitle}
         />
+
         <TextInput
           style={[styles.input, styles.textArea]}
           placeholder="Descrição"
@@ -169,7 +193,11 @@ export default function App() {
         {photo && <Image source={{ uri: photo }} style={styles.previewImage} />}
 
         <View style={styles.row}>
-          <Button title={loading ? 'Salvando...' : 'Salvar'} onPress={handleSave} disabled={loading} />
+          <Button
+            title={loading ? 'Salvando...' : 'Salvar'}
+            onPress={handleSave}
+            disabled={loading}
+          />
         </View>
       </ScrollView>
 
